@@ -132,6 +132,8 @@ path_ovs_etc_openv="/etc/openvswitch"
 path_ovs_run_openv="/run/openvswitch"
 path_ovs_var_openv="/var/run/openvswitch"
 
+invalid_file_list=""
+
 for p in "$path_cni_netd" "$path_cni_bin" "$path_sdn_lib_ocpsdn" "$path_sdn_run_ocpsdn" "$path_ovs_openv" "$path_ovs_k8s" "$path_ovs_etc_openv" "$path_ovs_run_openv" "$path_ovs_var_openv"
 do
   if [ -d "$p" ]; then
@@ -140,7 +142,7 @@ do
     do
       if [ $(stat -c %a "$i") -gt 644 ]; then
         valid_permission=false
-        warn " *Wrong permissoin for $i "
+        invalid_file_list+=" $i"
       fi
     done
   fi
@@ -150,6 +152,10 @@ if [ "$valid_permission" = "true" ]; then
   pass "$check_1_1_9"
 else
   warn "$check_1_1_9"
+  for p in $invalid_file_list
+  do
+    warn " *Wrong ownership for $p "
+  done
 fi
 
 check_1_1_10="1.1.10  - Ensure that the Container Network Interface file ownership is set to root:root (Not Scored)"
@@ -167,6 +173,8 @@ path_ovs_etc_openv="/etc/openvswitch"
 path_ovs_run_openv="/run/openvswitch"
 path_ovs_var_openv="/var/run/openvswitch"
 
+invalid_file_list=""
+
 for p in "$path_cni_netd" "$path_cni_bin" "$path_sdn_lib_ocpsdn" "$path_sdn_run_ocpsdn" "$path_ovs_k8s"
 do
   if [ -d "$p" ]; then
@@ -175,7 +183,7 @@ do
     do
       if [ $(stat -c %U:%G "$i") != "root:root" ]; then
         valid_ownership=false
-        warn " *Wrong ownership for $i "
+        invalid_file_list+=" $i"
       fi
     done
   fi
@@ -189,7 +197,7 @@ do
     do
       if [ $(stat -c %U:%G "$i") != "openvswitch:openvswitch" ]; then
         valid_ownership=false
-        warn " *Wrong ownership for $i "
+        invalid_file_list+=" $i"
       fi
     done
   fi
@@ -199,6 +207,10 @@ if [ "$valid_ownership" = "true" ]; then
   pass "$check_1_1_10"
 else
   warn "$check_1_1_10"
+  for p in $invalid_file_list
+  do
+    warn " *Wrong ownership for $p "
+  done
 fi
 
 check_1_1_11="1.1.11  - Ensure that the etcd data directory permissions are set to 700 or more restrictive (Scored)"
@@ -209,7 +221,7 @@ if [ -d "$file" ]; then
     pass "$check_1_1_11"
   else
     warn "$check_1_1_11"
-    warn "     * Wrong ownership for $file"
+    warn "     * Wrong permission for $file"
   fi
 else
   info "$check_1_1_11"

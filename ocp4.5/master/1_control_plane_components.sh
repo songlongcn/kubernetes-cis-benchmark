@@ -133,6 +133,8 @@ path_ovs_etc_openv="/etc/openvswitch"
 path_ovs_run_openv="/run/openvswitch"
 path_ovs_var_openv="/var/run/openvswitch"
 
+invalid_file_list=""
+
 for p in "$path_cni_netd" "$path_cni_bin" "$path_cni_multus" "$path_sdn_lib_ocpsdn" "$path_sdn_run_ocpsdn" "$path_ovs_openv" "$path_ovs_k8s" "$path_ovs_etc_openv" "$path_ovs_run_openv" "$path_ovs_var_openv"
 do
   if [ -d "$p" ]; then
@@ -141,7 +143,7 @@ do
     do
       if [ $(stat -c %a "$i") -gt 644 ]; then
         valid_permission=false
-        warn " *Wrong permissoin for $i "
+        invalid_file_list+=" $i"
       fi
     done
   fi
@@ -151,6 +153,10 @@ if [ "$valid_permission" = "true" ]; then
   pass "$check_1_1_9"
 else
   warn "$check_1_1_9"
+  for p in $invalid_file_list
+  do
+    warn " *Wrong ownership for $p "
+  done
 fi
 
 check_1_1_10="1.1.10  - Ensure that the Container Network Interface file ownership and openshift-sdn file ownership are set to root:root.  The Open vSwitch (OVS) file ownership is set to openvswitch:openvswitch (Not Scored)"
@@ -169,6 +175,8 @@ path_ovs_etc_openv="/etc/openvswitch"
 path_ovs_run_openv="/run/openvswitch"
 path_ovs_var_openv="/var/run/openvswitch"
 
+invalid_file_list=""
+
 for p in "$path_cni_netd" "$path_cni_bin" "$path_cni_multus" "$path_sdn_lib_ocpsdn" "$path_sdn_run_ocpsdn"
 do
   if [ -d "$p" ]; then
@@ -177,7 +185,7 @@ do
     do
       if [ $(stat -c %U:%G "$i") != "root:root" ]; then
         valid_ownership=false
-        warn " *Wrong ownership for $i "
+        invalid_file_list+=" $i"
       fi
     done
   fi
@@ -191,7 +199,7 @@ do
     do
       if [ $(stat -c %U:%G "$i") != "openvswitch:openvswitch" ]; then
         valid_ownership=false
-        warn " *Wrong ownership for $i "
+        invalid_file_list+=" $i"
       fi
     done
   fi
@@ -201,6 +209,10 @@ if [ "$valid_ownership" = "true" ]; then
   pass "$check_1_1_10"
 else
   warn "$check_1_1_10"
+  for p in $invalid_file_list
+  do
+    warn " *Wrong ownership for $p "
+  done
 fi
 
 check_1_1_11="1.1.11  - Ensure that the etcd data directory permissions are set to 700 or more restrictive (Scored)"
@@ -211,7 +223,7 @@ if [ -d "$file" ]; then
     pass "$check_1_1_11"
   else
     warn "$check_1_1_11"
-    warn "     * Wrong ownership for $file"
+    warn "     * Wrong permission for $file"
   fi
 else
   info "$check_1_1_11"
@@ -347,73 +359,96 @@ fi
 
 check_1_1_19="1.1.19  - Ensure that the Kubernetes PKI directory and file ownership is set to root:root (Scored)"
 
-directories=$(find /etc/kubernetes/static-pod-certs -type d -wholename '*/secrets*')
-files=$(find /etc/kubernetes/static-pod-certs -type f -wholename '*/secrets*')
-
+cert_path="/etc/kubernetes/static-pod-certs"
 valid_perm_dir=false
-for i in $directories
-do
-  if [ $(stat -c %u%g "$i") -eq 00 ]; then
-    valid_perm_dir=true
-  else
-    valid_perm_dir=false
-    break
-  fi
-done
-
 valid_perm_file=false
-for i in $files
-do
-  if [ $(stat -c %u%g "$i") -eq 00 ]; then
-    valid_perm_file=true
-  else
-    valid_perm_file=false
-    break
-  fi
-done
 
-if [ "$valid_perm_file" = "true" ] && [ "$valid_perm_dir" = "true" ]; then
-  pass "$check_1_1_19"
+if [ -f "$cert_path" ]; then
+
+  directories=$(find $cert_path -type d -wholename '*/secrets*')
+  files=$(find $cert_path -type f -wholename '*/secrets*')
+
+  for i in $directories
+  do
+    if [ $(stat -c %u%g "$i") -eq 00 ]; then
+      valid_perm_dir=true
+    else
+      valid_perm_dir=false
+      break
+    fi
+  done
+
+  for i in $files
+  do
+    if [ $(stat -c %u%g "$i") -eq 00 ]; then
+      valid_perm_file=true
+    else
+      valid_perm_file=false
+      break
+    fi
+  done
+
+  if [ "$valid_perm_file" = "true" ] && [ "$valid_perm_dir" = "true" ]; then
+    pass "$check_1_1_19"
+  else
+    warn "$check_1_1_19"
+  fi
 else
-  warn "$check_1_1_19"
+   warn "$check_1_1_19"
+   warn "$cert_path doesn't exist."
 fi
 
 check_1_1_20="1.1.20  - Ensure that the Kubernetes PKI certificate file permissions are set to 644 or more restrictive (Not Scored)"
-files=$(find /etc/kubernetes/static-pod-certs -type f -wholename '*/secrets/*.crt')
-valid_perm_file=false
-for i in $files
-do
-  if [ $(stat -c %a "$i") -eq 600 ]; then
-    valid_perm_file=true
-  else
-    valid_perm_file=false
-    break
-  fi
-done
 
-if [ "$valid_perm_file" = "true" ]; then
-  pass "$check_1_1_20"
+cert_path="/etc/kubernetes/static-pod-certs"
+if [ -f "$cert_path" ]; then
+  files=$(find $cert_path -type f -wholename '*/secrets/*.crt')
+  valid_perm_file=false
+  for i in $files
+  do
+    if [ $(stat -c %a "$i") -eq 600 ]; then
+      valid_perm_file=true
+    else
+      valid_perm_file=false
+      break
+    fi
+  done
+
+  if [ "$valid_perm_file" = "true" ]; then
+    pass "$check_1_1_20"
+  else
+    warn "$check_1_1_20"
+  fi
 else
-  warn "$check_1_1_20"
+   warn "$check_1_1_20"
+   warn "$cert_path doesn't exist."
 fi
 
 check_1_1_21="1.1.21  - Ensure that the Kubernetes PKI key file permissions are set to 600 (Not Scored)"
-files=$(find /etc/kubernetes/static-pod-certs -type f -wholename '*/secrets/*.key')
-valid_perm_file=false
-for i in $files
-do
-  if [ $(stat -c %a "$i") -eq 600 ]; then
-    valid_perm_file=true
-  else
-    valid_perm_file=false
-    break
-  fi
-done
 
-if [ "$valid_perm_file" = "true" ]; then
-  pass "$check_1_1_21"
+cert_path="/etc/kubernetes/static-pod-certs"
+
+if [ -f "$cert_path" ]; then
+  files=$(find $cert_path -type f -wholename '*/secrets/*.key')
+  valid_perm_file=false
+  for i in $files
+  do
+    if [ $(stat -c %a "$i") -eq 600 ]; then
+      valid_perm_file=true
+    else
+      valid_perm_file=false
+      break
+    fi
+  done
+
+  if [ "$valid_perm_file" = "true" ]; then
+    pass "$check_1_1_21"
+  else
+    warn "$check_1_1_21"
+  fi
 else
-  warn "$check_1_1_21"
+   warn "$check_1_1_21"
+   warn "$cert_path doesn't exist."
 fi
 
 info "1.2 - API Server"
@@ -829,7 +864,7 @@ else
 fi
 
 check_1_3_5="1.3.5  - Ensure that the --root-ca-file argument is set as appropriate (Scored)"
-output=$(oc --kubeconfig "$KUBE_CONFIG_PATH" oc get configmaps config -n openshift-kube-controller-manager -ojson | \
+output=$(oc --kubeconfig "$KUBE_CONFIG_PATH" get configmaps config -n openshift-kube-controller-manager -ojson | \
   jq -r '.data["config.yaml"]' | \
   jq -r '.extendedArguments["root-ca-file"] //empty')
 if [ -z "$output" ]; then
